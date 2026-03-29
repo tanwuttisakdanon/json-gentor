@@ -1,23 +1,25 @@
 import { useState, useMemo } from 'react';
 import { useJsonStore, type JsonNode } from '../store/jsonStore';
-import { Database, Copy, Check, Code, ListTree, TableProperties } from 'lucide-react';
-import JsonViewer from '../components/JsonViewer'; // นำเข้า Tree View ที่เพิ่งสร้าง
+import { Database, Copy, Check, Code, ListTree, TableProperties, Wand2 } from 'lucide-react';
+import JsonViewer from '../components/JsonViewer';
+import { faker } from '@faker-js/faker';
 
 export default function DataEntry() {
     const { nodes, bulkData, setBulkData } = useJsonStore();
     const [copied, setCopied] = useState(false);
-
-    // เพิ่ม State สำหรับจัดการ Tab (json, tree, table)
     const [activeTab, setActiveTab] = useState<'json' | 'tree' | 'table'>('json');
 
-    const getLeafNodes = (nodeList: JsonNode[], currentPath = ''): { id: string; path: string; type: string; key: string }[] => {
+    // ตัวแปรสำหรับจำนวนบรรทัดที่ต้องการสุ่ม
+    const [mockRowCount, setMockRowCount] = useState(10);
+
+    const getLeafNodes = (nodeList: JsonNode[], currentPath = ''): { id: string; path: string; type: string; key: string; mockType?: string }[] => {
         let leaves: any[] = [];
         nodeList.forEach(node => {
             const nodeName = node.id === 'root-id' ? '' : node.key;
             const path = currentPath ? (nodeName ? `${currentPath}.${nodeName}` : currentPath) : nodeName;
 
             if (['string', 'number', 'boolean'].includes(node.type)) {
-                leaves.push({ id: node.id, path: path || node.key, type: node.type, key: node.key });
+                leaves.push({ id: node.id, path: path || node.key, type: node.type, key: node.key, mockType: node.mockType });
             } else if (node.children) {
                 leaves = [...leaves, ...getLeafNodes(node.children, path)];
             }
@@ -26,6 +28,39 @@ export default function DataEntry() {
     };
 
     const leafNodes = useMemo(() => getLeafNodes(nodes), [nodes]);
+
+    // ฟังก์ชันพระเอก: เสกข้อมูลด้วย Faker.js
+    const handleGenerateMockData = () => {
+        const newData = { ...bulkData };
+        let hasMockableFields = false;
+
+        leafNodes.forEach(field => {
+            if (!field.mockType) return; // ถ้าไม่ได้ตั้งค่าสุ่มไว้ ให้ข้ามไป (ให้พิมพ์เอง)
+
+            hasMockableFields = true;
+            const samples = [];
+
+            for (let i = 0; i < mockRowCount; i++) {
+                if (field.mockType === 'fullName') samples.push(faker.person.fullName());
+                else if (field.mockType === 'email') samples.push(faker.internet.email().toLowerCase());
+                else if (field.mockType === 'phone') samples.push(faker.phone.number());
+                else if (field.mockType === 'uuid') samples.push(faker.string.uuid());
+                else if (field.mockType === 'city') samples.push(faker.location.city());
+                else if (field.mockType === 'word') samples.push(faker.word.sample());
+                else if (field.mockType === 'number_int') samples.push(faker.number.int({ min: 1, max: 1000 }).toString());
+                else if (field.mockType === 'price') samples.push(faker.commerce.price());
+            }
+
+            // เอาข้อมูลที่สุ่มได้มาต่อกันด้วยการขึ้นบรรทัดใหม่
+            newData[field.id] = samples.join('\n');
+        });
+
+        if (hasMockableFields) {
+            setBulkData(newData);
+        } else {
+            alert("ไม่พบ Field ที่ตั้งค่าให้สุ่มข้อมูล กรุณากลับไปหน้า 'โครงสร้าง JSON' แล้วเลือกประเภทการสุ่ม (เช่น ชื่อ, อีเมล) ก่อนครับ");
+        }
+    };
 
     const generatedData = useMemo(() => {
         let maxLines = 1;
@@ -78,13 +113,39 @@ export default function DataEntry() {
                     <Database size={24} />
                     ใส่ข้อมูล (Bulk Data Entry)
                 </h1>
-                <p className="text-zinc-500 text-sm mt-1">Copy ข้อมูลจาก Excel/CSV มาวาง (Paste) ในกล่องแต่ละ Field ได้เลย</p>
+                <p className="text-zinc-500 text-sm mt-1">Copy ข้อมูลมาวาง หรือใช้ระบบสุ่มข้อมูลอัตโนมัติ (Auto-Mock Data)</p>
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 items-start">
 
-                {/* ฝั่งซ้าย: กล่องรับข้อมูล (เหมือนเดิม) */}
+                {/* ฝั่งซ้าย: กล่องรับข้อมูล */}
                 <div className="bg-white border border-zinc-200 rounded-xl p-6 shadow-sm">
+
+                    {/* แผงควบคุม Auto-Mock */}
+                    <div className="mb-6 pb-6 border-b border-zinc-100 flex items-end justify-between gap-4 bg-[#F4F5F1] p-4 rounded-lg">
+                        <div>
+                            <label className="block text-xs font-bold text-zinc-600 mb-1.5 uppercase tracking-wider">ระบบสุ่มข้อมูลอัตโนมัติ</label>
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm text-zinc-500">สร้างข้อมูลจำนวน</span>
+                                <input
+                                    type="number"
+                                    min="1" max="1000"
+                                    value={mockRowCount}
+                                    onChange={(e) => setMockRowCount(Number(e.target.value))}
+                                    className="w-20 px-2 py-1 border border-zinc-300 rounded text-sm focus:outline-none focus:border-[#A3B18A]"
+                                />
+                                <span className="text-sm text-zinc-500">บรรทัด</span>
+                            </div>
+                        </div>
+                        <button
+                            onClick={handleGenerateMockData}
+                            className="flex items-center gap-2 px-4 py-2 bg-[#A3B18A] text-white rounded-md hover:bg-[#8D9A77] transition shadow-sm font-medium text-sm"
+                        >
+                            <Wand2 size={16} />
+                            เสกข้อมูล!
+                        </button>
+                    </div>
+
                     <h2 className="text-sm font-semibold text-zinc-800 mb-6">วางข้อมูลตาม Field</h2>
                     {leafNodes.length === 0 ? (
                         <div className="text-center py-10 text-zinc-400 bg-zinc-50 rounded-lg border border-dashed border-zinc-200">
@@ -94,8 +155,11 @@ export default function DataEntry() {
                         <div className="space-y-4">
                             {leafNodes.map(field => (
                                 <div key={field.id} className="flex flex-col gap-1.5">
-                                    <label className="text-xs font-mono font-semibold text-zinc-600">
-                                        <span className="text-zinc-400 font-normal">Path:</span> {field.path}
+                                    <label className="text-xs font-mono font-semibold text-zinc-600 flex justify-between">
+                                        <span><span className="text-zinc-400 font-normal">Path:</span> {field.path}</span>
+                                        {field.mockType && (
+                                            <span className="text-[#A3B18A] flex items-center gap-1"><Wand2 size={10} /> สุ่มเป็น {field.mockType}</span>
+                                        )}
                                     </label>
                                     <textarea
                                         value={bulkData[field.id] || ''}
@@ -109,72 +173,42 @@ export default function DataEntry() {
                     )}
                 </div>
 
-                {/* ฝั่งขวา: Live Data Preview แบบ Multiple Views */}
+                {/* ฝั่งขวา: Live Data Preview แบบ Multiple Views (โค้ดเดิม) */}
                 <div className="bg-[#1E1E20] rounded-xl shadow-sm sticky top-8 border border-zinc-800 flex flex-col overflow-hidden h-[700px]">
-
-                    {/* Header & Tabs */}
                     <div className="flex items-center justify-between border-b border-zinc-800 bg-[#18181A] px-2 py-2">
                         <div className="flex gap-1">
-                            <button onClick={() => setActiveTab('json')} className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition ${activeTab === 'json' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'}`}>
-                                <Code size={14} /> Raw JSON
-                            </button>
-                            <button onClick={() => setActiveTab('tree')} className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition ${activeTab === 'tree' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'}`}>
-                                <ListTree size={14} /> Tree View
-                            </button>
-                            <button onClick={() => setActiveTab('table')} className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition ${activeTab === 'table' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'}`}>
-                                <TableProperties size={14} /> Table View
-                            </button>
+                            <button onClick={() => setActiveTab('json')} className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition ${activeTab === 'json' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'}`}><Code size={14} /> Raw JSON</button>
+                            <button onClick={() => setActiveTab('tree')} className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition ${activeTab === 'tree' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'}`}><ListTree size={14} /> Tree View</button>
+                            <button onClick={() => setActiveTab('table')} className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition ${activeTab === 'table' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'}`}><TableProperties size={14} /> Table View</button>
                         </div>
                         <button onClick={handleCopy} className="text-zinc-400 hover:text-white transition flex items-center gap-1.5 text-xs px-3 py-1.5 mr-1 bg-zinc-800 rounded-md">
                             {copied ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
                         </button>
                     </div>
 
-                    {/* Content Area */}
                     <div className="p-4 flex-1 overflow-auto scrollbar-hide">
                         {isEmpty ? (
                             <div className="text-zinc-500 text-sm h-full flex items-center justify-center">รอข้อมูล...</div>
                         ) : (
                             <>
-                                {/* 1. Raw JSON View */}
-                                {activeTab === 'json' && (
-                                    <pre className="text-[13px] leading-relaxed text-[#A3B18A] font-mono">
-                                        {jsonString}
-                                    </pre>
-                                )}
-
-                                {/* 2. Tree View */}
-                                {activeTab === 'tree' && (
-                                    <div className="text-zinc-300">
-                                        <JsonViewer data={generatedData} name="root_array" />
-                                    </div>
-                                )}
-
-                                {/* 3. Table View (Flatten พื้นฐาน) */}
+                                {activeTab === 'json' && <pre className="text-[13px] leading-relaxed text-[#A3B18A] font-mono">{jsonString}</pre>}
+                                {activeTab === 'tree' && <div className="text-zinc-300"><JsonViewer data={generatedData} name="root_array" /></div>}
                                 {activeTab === 'table' && (
                                     <div className="overflow-x-auto pb-4">
                                         <table className="w-full text-left text-sm text-zinc-300 border-collapse">
                                             <thead className="text-xs uppercase bg-zinc-800 text-zinc-400">
                                                 <tr>
                                                     <th className="px-4 py-2 border-b border-zinc-700">#</th>
-                                                    {leafNodes.map(col => (
-                                                        <th key={col.id} className="px-4 py-2 border-b border-zinc-700">{col.key}</th>
-                                                    ))}
+                                                    {leafNodes.map(col => <th key={col.id} className="px-4 py-2 border-b border-zinc-700">{col.key}</th>)}
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {generatedData.map((_, index) => (
                                                     <tr key={index} className="border-b border-zinc-800 hover:bg-zinc-800/50">
                                                         <td className="px-4 py-2 text-zinc-500">{index + 1}</td>
-                                                        {leafNodes.map(col => {
-                                                            // ดึงข้อมูลแบบง่ายๆ มาแสดงในตาราง (ถ้าซ้อนลึกอาจจะต้องเขียน function วิ่งหา path)
-                                                            const cellValue = bulkData[col.id]?.split('\n')[index] || "-";
-                                                            return (
-                                                                <td key={col.id} className="px-4 py-2 text-zinc-300">
-                                                                    {cellValue}
-                                                                </td>
-                                                            );
-                                                        })}
+                                                        {leafNodes.map(col => (
+                                                            <td key={col.id} className="px-4 py-2 text-zinc-300">{bulkData[col.id]?.split('\n')[index] || "-"}</td>
+                                                        ))}
                                                     </tr>
                                                 ))}
                                             </tbody>
@@ -184,8 +218,8 @@ export default function DataEntry() {
                             </>
                         )}
                     </div>
-
                 </div>
+
             </div>
         </div>
     );

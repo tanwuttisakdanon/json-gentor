@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { db } from '../firebase';
 import { collection, addDoc, serverTimestamp, doc, updateDoc } from 'firebase/firestore';
+import { arrayMove } from '@dnd-kit/sortable'; // นำเข้าตัวช่วยสลับ Array
 
 export type DataType = 'string' | 'number' | 'boolean' | 'object' | 'array';
 
@@ -8,6 +9,7 @@ export interface JsonNode {
     id: string;
     key: string;
     type: DataType;
+    mockType?: string; // เพิ่มตัวนี้เพื่อบอกว่าจะสุ่มข้อมูลแบบไหน
     children?: JsonNode[];
 }
 
@@ -31,6 +33,7 @@ interface JsonState {
     currentProjectId: string | null; // เก็บว่าตอนนี้เราเปิดโปรเจกต์ไหนอยู่
     projectName: string;
 
+
     // Actions
     addNode: (parentId: string | null) => void;
     updateNode: (id: string, updates: Partial<JsonNode>) => void;
@@ -45,10 +48,28 @@ interface JsonState {
     resetProject: () => void;
 
     importNodes: (nodes: JsonNode[]) => void;
+
+    reorderNodes: (parentId: string, oldIndex: number, newIndex: number) => void;
+
 }
 
 // ... (addTree, updateTree, removeTree เหมือนเดิม) ...
 const generateId = () => Math.random().toString(36).substring(2, 9);
+
+const reorderTree = (nodes: JsonNode[], parentId: string, oldIndex: number, newIndex: number): JsonNode[] => {
+    if (parentId === 'root-id') {
+        return arrayMove(nodes, oldIndex, newIndex);
+    }
+    return nodes.map(node => {
+        if (node.id === parentId && node.children) {
+            return { ...node, children: arrayMove(node.children, oldIndex, newIndex) };
+        }
+        if (node.children) {
+            return { ...node, children: reorderTree(node.children, parentId, oldIndex, newIndex) };
+        }
+        return node;
+    });
+};
 
 export const useJsonStore = create<JsonState>((set, get) => ({
     nodes: [{ id: 'root-id', key: 'root', type: 'object', children: [] }],
@@ -113,6 +134,10 @@ export const useJsonStore = create<JsonState>((set, get) => ({
     },
 
     importNodes: (nodes) => set({ nodes }),
+
+    reorderNodes: (parentId, oldIndex, newIndex) => set((state) => ({
+        nodes: reorderTree(state.nodes, parentId, oldIndex, newIndex)
+    }))
 }));
 
 // Helper functions (addTree, updateTree, removeTree) ต้องอยู่ท้ายไฟล์เหมือนเดิม
