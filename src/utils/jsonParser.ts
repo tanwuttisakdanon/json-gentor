@@ -39,5 +39,53 @@ export const generateJsonSkeleton = (nodes: JsonNode[]) => {
         result[child.key] = parseNode(child);
     });
 
+
+
     return result;
+};
+
+// ฟังก์ชันสุ่ม ID
+const generateId = () => Math.random().toString(36).substring(2, 9);
+
+// ฟังก์ชันแปลง JSON String กลับเป็น Node Structure
+export const parseJsonToNodes = (jsonString: string): JsonNode[] | null => {
+    try {
+        const parsedData = JSON.parse(jsonString);
+        const rootNode: JsonNode = { id: 'root-id', key: 'root', type: 'object', children: [] };
+
+        // ฟังก์ชัน Recursive แกะกล่องข้อมูล
+        const traverse = (data: any): JsonNode[] => {
+            if (typeof data !== 'object' || data === null) return [];
+
+            return Object.keys(data).map(key => {
+                const value = data[key];
+                const id = generateId();
+
+                if (Array.isArray(value)) {
+                    // ถ้าเป็น Array ให้ดูลูกตัวแรกเป็นต้นแบบ
+                    let children: JsonNode[] = [];
+                    if (value.length > 0 && typeof value[0] === 'object' && value[0] !== null) {
+                        children = traverse(value[0]);
+                    }
+                    return { id, key, type: 'array', children };
+                }
+                else if (typeof value === 'object' && value !== null) {
+                    return { id, key, type: 'object', children: traverse(value) };
+                }
+                else {
+                    // ข้อมูลธรรมดา
+                    let type: any = 'string';
+                    if (typeof value === 'number') type = 'number';
+                    if (typeof value === 'boolean') type = 'boolean';
+                    return { id, key, type };
+                }
+            });
+        };
+
+        rootNode.children = traverse(parsedData);
+        return [rootNode];
+    } catch (error) {
+        console.error("Invalid JSON format", error);
+        return null;
+    }
 };

@@ -163,7 +163,7 @@ export default function DataEntry() {
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {generatedData.map((row, index) => (
+                                                {generatedData.map((_, index) => (
                                                     <tr key={index} className="border-b border-zinc-800 hover:bg-zinc-800/50">
                                                         <td className="px-4 py-2 text-zinc-500">{index + 1}</td>
                                                         {leafNodes.map(col => {

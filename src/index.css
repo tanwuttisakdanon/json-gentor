@@ -1,1 +1,37 @@
 @import "tailwindcss";
+
+/* ปรับแต่ง Scrollbar สไตล์ Minimal */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #E4E4E7;
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #D4D4D8;
+}
+
+/* ซ่อน Scrollbar แต่ยังเลื่อนได้ (สำหรับกล่องโค้ด) */
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* ตั้งค่า Font อบอุ่น */
+body {
+    background-color: #FAFAFA;
+    color: #27272A;
+    -webkit-font-smoothing: antialiased;
+}

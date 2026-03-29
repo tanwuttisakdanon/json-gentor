@@ -6,7 +6,7 @@ export default function Export() {
     const { nodes, bulkData } = useJsonStore();
 
     // 1. ดึงข้อมูล Field ทั้งหมด
-    const getLeafNodes = (nodeList: JsonNode[], currentPath = ''): { id: string; key: string }[] => {
+    const getLeafNodes = (nodeList: JsonNode[]): { id: string; key: string }[] => {
         let leaves: any[] = [];
         nodeList.forEach(node => {
             if (['string', 'number', 'boolean'].includes(node.type)) {
