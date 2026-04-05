@@ -65,6 +65,20 @@ export default function JsonNodeItem({ node, depth = 0 }: Props) {
                     {dataTypes.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
 
+                {/* --- เพิ่มโค้ดส่วนนี้เข้าไปครับ --- */}
+                {node.type === 'array' && !isRoot && (
+                    <label className="flex items-center gap-1.5 ml-2 text-xs text-zinc-500 cursor-pointer bg-amber-50 border border-amber-200 px-2 py-1 rounded hover:bg-amber-100 transition" title="ถ้าติ๊ก ระบบจะนำข้อมูลหลายบรรทัดไปสร้างเป็น Array ในก้อนนี้แทน">
+                        <input
+                            type="checkbox"
+                            checked={node.isBulkArray || false}
+                            onChange={(e) => updateNode(node.id, { isBulkArray: e.target.checked })}
+                            className="accent-amber-500"
+                        />
+                        <span className="font-medium text-amber-700">รับข้อมูลหลายบรรทัด</span>
+                    </label>
+                )}
+                {/* ------------------------------- */}
+
                 {/* ส่วนที่เพิ่มมาใหม่: Dropdown เลือกการสุ่มข้อมูล */}
                 {!isComplex && !isRoot && (
                     <div className="flex items-center gap-1 ml-2 bg-zinc-50 border border-zinc-200 rounded px-1.5 py-1">

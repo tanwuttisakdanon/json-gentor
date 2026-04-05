@@ -62,43 +62,105 @@ export default function DataEntry() {
         }
     };
 
+    // --- แทนที่ generatedData ตัวเดิมด้วยโค้ดชุดนี้ ---
     const generatedData = useMemo(() => {
-        let maxLines = 1;
-        const parsedData: Record<string, any[]> = {};
+        // 1. ค้นหาว่ามี Array ตัวไหนถูกติ๊กเป็น Bulk Array ไหม
+        const findBulkNode = (nodeList: JsonNode[]): JsonNode | null => {
+            for (const n of nodeList) {
+                if (n.isBulkArray) return n;
+                if (n.children) {
+                    const found = findBulkNode(n.children);
+                    if (found) return found;
+                }
+            }
+            return null;
+        };
+        const bulkNode = findBulkNode(nodes);
 
-        Object.keys(bulkData).forEach(id => {
-            const lines = bulkData[id].split('\n').map(line => line.trim());
-            maxLines = Math.max(maxLines, lines.length);
-            parsedData[id] = lines;
-        });
+        // 2. ฟังก์ชันประกอบร่างแบบ Recursive
+        const buildNode = (nodeList: JsonNode[], loopIndex: number = 0): any => {
+            const obj: any = {};
+            nodeList.forEach(node => {
+                // ข้าม root-id เพื่อไม่ให้มี key คำว่า root โผล่มา
+                if (node.id === 'root-id' && node.children) {
+                    return Object.assign(obj, buildNode(node.children, loopIndex));
+                }
 
-        const result = [];
-        for (let i = 0; i < maxLines; i++) {
-            const buildObject = (nodeList: JsonNode[]): any => {
-                const obj: any = {};
-                nodeList.forEach(node => {
-                    if (node.id === 'root-id' && node.children) return Object.assign(obj, buildObject(node.children));
-                    if (['string', 'number', 'boolean'].includes(node.type)) {
-                        let val = parsedData[node.id]?.[i] || "";
-                        if (node.type === 'number') val = Number(val) || 0;
-                        if (node.type === 'boolean') val = val.toLowerCase() === 'true';
-                        obj[node.key] = val;
-                    } else if (node.type === 'object' && node.children) {
-                        obj[node.key] = buildObject(node.children);
-                    } else if (node.type === 'array' && node.children) {
-                        obj[node.key] = [buildObject(node.children)];
+                if (['string', 'number', 'boolean'].includes(node.type)) {
+                    const lines = bulkData[node.id]?.split('\n').map(l => l.trim()) || [];
+                    // สำคัญ: ถ้ามีหลายบรรทัด ให้ใช้บรรทัดที่ loopIndex แต่ถ้ามีบรรทัดเดียว (เช่น company) ให้ใช้ซ้ำบรรทัดแรกตลอด
+                    let valStr = lines.length > 1 ? lines[loopIndex] : lines[0];
+                    if (valStr === undefined) valStr = "";
+
+                    let finalVal: any = valStr;
+                    if (node.type === 'number') finalVal = Number(valStr) || 0;
+                    if (node.type === 'boolean') finalVal = valStr.toLowerCase() === 'true';
+
+                    obj[node.key] = finalVal;
+                }
+                else if (node.type === 'object' && node.children) {
+                    obj[node.key] = buildNode(node.children, loopIndex);
+                }
+                else if (node.type === 'array' && node.children) {
+                    if (node.isBulkArray) {
+                        // ถ้าใช่ Bulk Array ให้หาว่าลูกๆ มันมีข้อมูล Paste มากี่บรรทัด
+                        let maxL = 1;
+                        const getLeafIds = (nList: JsonNode[]): string[] => {
+                            let ids: string[] = [];
+                            nList.forEach(n => {
+                                if (['string', 'number', 'boolean'].includes(n.type)) ids.push(n.id);
+                                else if (n.children) ids = [...ids, ...getLeafIds(n.children)];
+                            });
+                            return ids;
+                        };
+                        const leafIds = getLeafIds(node.children);
+                        leafIds.forEach(id => {
+                            const lines = bulkData[id]?.split('\n').map(l => l.trim()) || [];
+                            if (lines.length > maxL) maxL = lines.length;
+                        });
+
+                        // สร้าง Array ตามจำนวนบรรทัด
+                        const arr = [];
+                        for (let i = 0; i < maxL; i++) {
+                            arr.push(buildNode(node.children, i));
+                        }
+                        obj[node.key] = arr;
+                    } else {
+                        // ถ้าเป็น Array ปกติ ให้สร้างแค่ 1 ชิ้น
+                        obj[node.key] = [buildNode(node.children, loopIndex)];
                     }
-                });
-                return obj;
-            };
+                }
+            });
+            return obj;
+        };
 
-            if (Object.keys(parsedData).length > 0) result.push(buildObject(nodes));
+        // 3. ตัดสินใจว่าจะ Output ออกมาเป็น Object เดียว หรือ Array
+        if (bulkNode) {
+            // ถ้ามีการระบุ Bulk Array ผลลัพธ์ต้องเป็น Object ก้อนเดียวที่ครอบทุกอย่าง
+            return buildNode(nodes, 0);
+        } else {
+            // โหมดปกติ (ไม่ได้ติ๊ก): วนลูปที่ Root เลย
+            let globalMax = 1;
+            Object.values(bulkData).forEach(val => {
+                const lines = val.split('\n');
+                if (lines.length > globalMax) globalMax = lines.length;
+            });
+            const result = [];
+            if (Object.keys(bulkData).length > 0) {
+                for (let i = 0; i < globalMax; i++) {
+                    result.push(buildNode(nodes, i));
+                }
+            }
+            return result;
         }
-        return result;
     }, [nodes, bulkData]);
 
+    // เนื่องจากผลลัพธ์อาจเป็นก้อน Object เดี่ยวๆ (ไม่ใช่อาร์เรย์) เราต้องเช็คให้ Table View รันได้
+    const tableData = Array.isArray(generatedData) ? generatedData : [generatedData];
     const jsonString = JSON.stringify(generatedData, null, 2);
-    const isEmpty = generatedData.length === 0;
+    const isEmpty = Array.isArray(generatedData) ? generatedData.length === 0 : Object.keys(generatedData).length === 0;
+    // -----------------------------------------------------------
+
 
     const handleCopy = () => {
         navigator.clipboard.writeText(jsonString);
@@ -203,7 +265,7 @@ export default function DataEntry() {
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {generatedData.map((_, index) => (
+                                                {tableData.map((_, index) => (
                                                     <tr key={index} className="border-b border-zinc-800 hover:bg-zinc-800/50">
                                                         <td className="px-4 py-2 text-zinc-500">{index + 1}</td>
                                                         {leafNodes.map(col => (

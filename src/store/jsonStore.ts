@@ -10,6 +10,7 @@ export interface JsonNode {
     key: string;
     type: DataType;
     mockType?: string; // เพิ่มตัวนี้เพื่อบอกว่าจะสุ่มข้อมูลแบบไหน
+    isBulkArray?: boolean; // <-- เพิ่มบรรทัดนี้ เพื่อบอกว่าเป็น Array สำหรับกระจายข้อมูล
     children?: JsonNode[];
 }
 
